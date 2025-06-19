@@ -8,18 +8,14 @@
 #include <QImage>
 #include <QString>
 
-namespace Dtk {
-namespace Ocr {
-class DOcr;
-}
-}
-
+class OCRDynamicLoader;
 class QSettings;
 
 class OCREngine
 {
 public:
-    static OCREngine *instance();
+    OCREngine();
+    ~OCREngine();
 
     bool isRunning() const
     {
@@ -31,10 +27,7 @@ public:
     QString getRecogitionResult();
 
 private:
-    OCREngine();
-    ~OCREngine() = default;
-
-    Dtk::Ocr::DOcr *ocrDriver;
+    OCRDynamicLoader *ocrLoader;
     std::atomic_bool m_isRunning;
     QSettings *ocrSetting;
 };

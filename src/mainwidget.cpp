@@ -36,8 +36,9 @@
 #include <DStandardPaths>
 
 #define App (static_cast<QApplication*>(QCoreApplication::instance()))
-MainWidget::MainWidget(QWidget *parent) :
-    DWidget(parent)
+MainWidget::MainWidget(QWidget *parent)
+    : DWidget(parent),
+      m_ocrEngine(new OCREngine()) // 初始化OCR引擎实例
 {
     setupUi(this);
     DGuiApplicationHelper::ColorType themeType = DGuiApplicationHelper::instance()->themeType();
@@ -48,8 +49,26 @@ MainWidget::MainWidget(QWidget *parent) :
 
 MainWidget::~MainWidget()
 {
-    //程序即将结束,线程标志结束
+    //注销快捷键释放资源
+    if (m_scAddView) {
+        m_scAddView->setEnabled(false);
+        delete m_scAddView;
+        m_scAddView = nullptr;
+    }
+    if (m_scReduceView) {
+        m_scReduceView->setEnabled(false);
+        delete m_scReduceView;
+        m_scReduceView = nullptr;
+    }
+
+    //进程退出，不进行槽函数连接信号
     m_isEndThread = 0;
+    
+    // 清理OCR引擎实例
+    if (m_ocrEngine) {
+        delete m_ocrEngine;
+        m_ocrEngine = nullptr;
+    }
 }
 
 void MainWidget::setupUi(QWidget *Widget)
@@ -163,7 +182,7 @@ void MainWidget::setupUi(QWidget *Widget)
     //语种读写设置
     //目前仅支持默认插件，默认插件支持的语种字符串：zh-Hans_en，zh-Hant_en，en
     auto currentLanguage = ocrSetting->value("language", "zh-Hans_en").toString();
-    OCREngine::instance()->setLanguage(currentLanguage);
+    m_ocrEngine->setLanguage(currentLanguage);
 
     //设置语种选择框
     auto recLabel = new DLabel(tr("Recognize language"));
@@ -191,7 +210,7 @@ void MainWidget::setupUi(QWidget *Widget)
             resultLanguage = "zh-Hant_en";
             break;
         };
-        if(!OCREngine::instance()->setLanguage(resultLanguage)) {
+        if(!m_ocrEngine->setLanguage(resultLanguage)) {
             return;
         }
         ocrSetting->setValue("language", resultLanguage);
@@ -445,11 +464,11 @@ void MainWidget::runRec(bool needSetImage)
     createLoadingUi();
     m_plainTextEdit->clear();
     if(needSetImage) {
-        OCREngine::instance()->setImage(*m_currentImg);
+        m_ocrEngine->setImage(*m_currentImg);
     }
     if (!m_loadImagethread) {
         m_loadImagethread = QThread::create([ = ]() {
-            m_result = OCREngine::instance()->getRecogitionResult();
+            m_result = m_ocrEngine->getRecogitionResult();
             //判断程序是否退出
             if (1 == m_isEndThread) {
                 emit sigResult(m_result);

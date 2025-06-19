@@ -20,6 +20,7 @@ build*/
 *.DS_Store
 *.qm
 *.autosave
+translations/
 
 #vendor/include/*
 vendor/lib/*

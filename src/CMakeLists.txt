@@ -46,10 +46,6 @@ add_definitions(${QT_DEFINITIONS})
 
 include(CMakePackageConfigHelpers)
 
-# for ocr plugin manager
-# find_package(dtkocr)
-# include_directories(${dtkocr_INCLUDE_DIRS})
-
 # for OpenMP
 find_package(OpenMP REQUIRED)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
@@ -146,8 +142,6 @@ endif()
 
 # for dtk
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(ocr_lib REQUIRED dtk6ocr)
-target_include_directories(${PROJECT_NAME} PUBLIC ${ocr_lib_INCLUDE_DIRS})
 find_package(Dtk${DTK_VERSION_MAJOR} REQUIRED COMPONENTS Core Widget)
 
 if(NOT SUPPORT_QT6)
@@ -164,7 +158,6 @@ target_link_libraries(${PROJECT_NAME}
     Qt${QT_VERSION_MAJOR}::Widgets
     Dtk${DTK_VERSION_MAJOR}::Core
     Dtk${DTK_VERSION_MAJOR}::Widget
-    ${ocr_lib_LIBRARIES}
     pthread
 )
 
@@ -175,7 +168,6 @@ if(DOTEST)
         Qt${QT_VERSION_MAJOR}::Widgets
         Dtk${DTK_VERSION_MAJOR}::Core
         Dtk${DTK_VERSION_MAJOR}::Widget
-        ${ocr_lib_LIBRARIES}
         pthread
     )
 endif()

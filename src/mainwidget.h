@@ -111,6 +111,9 @@ private:
     std::atomic_bool m_needReRunRec = false;
 
     DComboBox *languageSelectBox {nullptr}; // 语言选择框
+    
+    // OCR引擎实例，作为成员变量而非全局单例，避免sw_64架构静态初始化问题
+    OCREngine *m_ocrEngine{nullptr};
 
 signals:
     void sigResult(const QString &);

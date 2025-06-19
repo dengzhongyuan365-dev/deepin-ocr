@@ -16,12 +16,33 @@
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusInterface>
+#include <QProperty>
 #include "util/log.h"
 
 DWIDGET_USE_NAMESPACE
 
 int main(int argc, char *argv[])
 {
+#ifdef __x86_64__
+    // 在x86架构上强制启用属性绑定依赖追踪
+    // 这样可以在x86上复现sw_64的崩溃问题，便于调试
+    qDebug() << "x86架构：强制启用Qt6属性绑定依赖追踪";
+    
+    // 创建一个QProperty来强制初始化属性绑定系统
+    // 这会触发QBindingStorage的初始化路径
+    class ForceBindingInit {
+    public:
+        QProperty<int> dummy{42};
+        ForceBindingInit() {
+            // 强制创建绑定来触发registerDependency_helper路径
+            auto binding = Qt::makePropertyBinding([this]() { return dummy.value() + 1; });
+            dummy.setBinding(binding);
+            volatile int result = dummy.value(); // 强制求值
+            Q_UNUSED(result);
+        }
+    };
+    static ForceBindingInit force_init;
+#endif
 
     if (argc < 2) {
         qDebug() << "Cant open a null file";

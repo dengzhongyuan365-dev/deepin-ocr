@@ -17,23 +17,24 @@ bool OcrApplication::openFile(QString filePath)
 {
     qCInfo(dmOcr) << __FUNCTION__ << __LINE__ << filePath;
     bool bRet = false;
-    if (!OCREngine::instance()->isRunning()) {
-        MainWindow *win = new MainWindow();
-        //增加判断，空图片不会启动
-        bRet = win->openFile(filePath);
-        if (bRet) {
-            win->show();
-            //第一次启动才居中
-            if (m_loadingCount == 0) {
-                Dtk::Widget::moveToCenter(win);
-                m_loadingCount++;
-                qCDebug(dmOcr) << "First launch, centering window";
-            }
-        } else {
-            qCWarning(dmOcr) << "Failed to open file:" << filePath;
+    
+    // 直接创建MainWindow，OCREngine现在是成员变量，不需要检查全局状态
+    MainWindow *win = new MainWindow(nullptr);
+    
+    //增加判断，空图片不会启动
+    bRet = win->openFile(filePath);
+    if (bRet) {
+        win->show();
+        //第一次启动才居中
+        if (m_loadingCount == 0) {
+            Dtk::Widget::moveToCenter(win);
+            m_loadingCount++;
+            qCDebug(dmOcr) << "First launch, centering window";
         }
     } else {
-        qCInfo(dmOcr) << "OCR is currently running, cannot open new file";
+        qCWarning(dmOcr) << "Failed to open file:" << filePath;
+        win->deleteLater(); // 清理窗口
+        win = nullptr;
     }
 
     return bRet;
@@ -44,18 +45,17 @@ void OcrApplication::openImage(QImage image)
     //增加判断，空图片不会启动
     if (!image.isNull() && image.width() >= 1) {
         qCInfo(dmOcr) << "Opening image, size:" << image.size();
-        if (!OCREngine::instance()->isRunning()) {
-            MainWindow *win = new MainWindow();
-            win->openImage(image);
-            win->show();
-            //第一次启动才居中
-            if (m_loadingCount == 0) {
-                Dtk::Widget::moveToCenter(win);
-                m_loadingCount++;
-                qCDebug(dmOcr) << "First launch, centering window";
-            }
-        } else {
-            qCInfo(dmOcr) << "OCR is currently running, cannot open new image";
+        
+        // 直接创建MainWindow，OCREngine现在是成员变量，不需要检查全局状态
+        MainWindow *win = new MainWindow(nullptr);
+        
+        win->openImage(image);
+        win->show();
+        //第一次启动才居中
+        if (m_loadingCount == 0) {
+            Dtk::Widget::moveToCenter(win);
+            m_loadingCount++;
+            qCDebug(dmOcr) << "First launch, centering window";
         }
     } else {
         qCWarning(dmOcr) << "Invalid image: null or width < 1";
@@ -67,18 +67,17 @@ void OcrApplication::openImageAndName(QImage image, QString imageName)
     //增加判断，空图片不会启动
     if (!image.isNull() && image.width() >= 1) {
         qCInfo(dmOcr) << "Opening image with name:" << imageName << ", size:" << image.size();
-        if (!OCREngine::instance()->isRunning()) {
-            MainWindow *win = new MainWindow();
-            win->openImage(image, imageName);
-            win->show();
-            //第一次启动才居中
-            if (m_loadingCount == 0) {
-                Dtk::Widget::moveToCenter(win);
-                m_loadingCount++;
-                qCDebug(dmOcr) << "First launch, centering window";
-            }
-        } else {
-            qCInfo(dmOcr) << "OCR is currently running, cannot open new image";
+        
+        // 直接创建MainWindow，OCREngine现在是成员变量，不需要检查全局状态
+        MainWindow *win = new MainWindow(nullptr);
+        
+        win->openImage(image, imageName);
+        win->show();
+        //第一次启动才居中
+        if (m_loadingCount == 0) {
+            Dtk::Widget::moveToCenter(win);
+            m_loadingCount++;
+            qCDebug(dmOcr) << "First launch, centering window";
         }
     } else {
         qCWarning(dmOcr) << "Invalid image: null or width < 1";
