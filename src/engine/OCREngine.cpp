@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "OCREngine.h"
+#include "OcrResult.h"
 #include <DOcr>
 #include <QProcess>
 #include <QFileInfo>
@@ -75,13 +76,13 @@ void OCREngine::setImage(const QImage &image)
     ocrDriver->setImage(image);
 }
 
-QString OCREngine::getRecogitionResult()
+OcrResult OCREngine::getRecognitionResult()
 {
     qCInfo(dmOcr) << "Starting OCR recognition";
     m_isRunning = true;
 
     ocrDriver->analyze();
-    QString result = ocrDriver->simpleResult();
+    OcrResult result = OcrResult::fromDOcr(ocrDriver);
     m_isRunning = false;
     qCInfo(dmOcr) << "OCR recognition completed";
     return result;

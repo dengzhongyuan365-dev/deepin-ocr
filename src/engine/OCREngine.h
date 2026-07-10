@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "OcrResult.h"
+
 #include <atomic>
 #include <QImage>
 #include <QString>
@@ -33,7 +35,7 @@ public:
 
     bool setLanguage(const QString &language);
     void setImage(const QImage &image);
-    QString getRecogitionResult();
+    OcrResult getRecognitionResult();
 
 private:
     OCREngine();
