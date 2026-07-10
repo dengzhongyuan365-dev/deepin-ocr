@@ -9,6 +9,8 @@
 #include <QClipboard>
 #include <QApplication>
 #include <QScrollBar>
+#include <QTextCursor>
+#include <QTimer>
 
 #include <math.h>
 
@@ -52,6 +54,14 @@ ResultTextView::ResultTextView(QWidget *parent)
         emit this->paste();
     });
     connect(this, &QPlainTextEdit::selectionChanged, this, &ResultTextView::onSelectionArea);
+    connect(this, &QPlainTextEdit::selectionChanged, this, [this]() {
+        if (m_blockSelectionSignal) {
+            return;
+        }
+        const int start = textCursor().selectionStart();
+        const int end = textCursor().selectionEnd();
+        emit textSelectionChanged(start, end);
+    });
     setFrameShape(QFrame::NoFrame);
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
@@ -352,4 +362,73 @@ void ResultTextView::onSelectionArea()
             setTextCursor(cursor);
         }
     }
+}
+
+void ResultTextView::setPlainTextResult(const QString &text)
+{
+    m_blockSelectionSignal = true;
+    setPlainText(text);
+    moveCursor(QTextCursor::Start);
+    m_blockSelectionSignal = false;
+}
+
+QPair<int, int> ResultTextView::plainTextSelectionRange() const
+{
+    return {textCursor().selectionStart(), textCursor().selectionEnd()};
+}
+
+void ResultTextView::selectPlainTextRange(int start, int end)
+{
+    if (start < 0 || end <= start) {
+        selectPlainTextRanges({});
+        return;
+    }
+    selectPlainTextRanges({qMakePair(start, end)});
+}
+
+void ResultTextView::selectPlainTextRanges(const QList<QPair<int, int>> &ranges)
+{
+    m_blockSelectionSignal = true;
+    if (ranges.isEmpty()) {
+        QTextCursor cursor = textCursor();
+        cursor.clearSelection();
+        setTextCursor(cursor);
+        setExtraSelections({});
+        QTimer::singleShot(0, this, [this]() { m_blockSelectionSignal = false; });
+        return;
+    }
+
+    if (ranges.size() == 1) {
+        const auto &range = ranges.first();
+        QTextCursor cursor = textCursor();
+        cursor.setPosition(range.first);
+        cursor.setPosition(range.second, QTextCursor::KeepAnchor);
+        setTextCursor(cursor);
+        setExtraSelections({});
+        QTimer::singleShot(0, this, [this]() { m_blockSelectionSignal = false; });
+        return;
+    }
+
+    QList<QTextEdit::ExtraSelection> extras;
+    extras.reserve(ranges.size());
+    const QColor highlightColor(0, 129, 255, 80);
+    for (const auto &range : ranges) {
+        if (range.first < 0 || range.second <= range.first) {
+            continue;
+        }
+        QTextEdit::ExtraSelection selection;
+        selection.format.setBackground(highlightColor);
+        selection.cursor = textCursor();
+        selection.cursor.setPosition(range.first);
+        selection.cursor.setPosition(range.second, QTextCursor::KeepAnchor);
+        extras.append(selection);
+    }
+
+    QTextCursor cursor = textCursor();
+    const auto &firstRange = ranges.first();
+    cursor.setPosition(firstRange.first);
+    cursor.setPosition(firstRange.second, QTextCursor::KeepAnchor);
+    setTextCursor(cursor);
+    setExtraSelections(extras);
+    QTimer::singleShot(0, this, [this]() { m_blockSelectionSignal = false; });
 }
