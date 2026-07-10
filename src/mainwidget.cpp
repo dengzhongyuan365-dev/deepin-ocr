@@ -21,6 +21,8 @@
 #include <QTimer>
 #include <QShortcut>
 #include <QPushButton>
+#include <QClipboard>
+#include <QGuiApplication>
 
 #include <DGuiApplicationHelper>
 #include <DMainWindow>
@@ -337,8 +339,14 @@ void MainWidget::setupConnect()
     connect(DGuiApplicationHelper::instance(), &DGuiApplicationHelper::paletteTypeChanged, this, &MainWidget::setIcons);
     connect(m_exportBtn, &DIconButton::clicked, this, &MainWidget::slotExport);
     connect(m_copyBtn, &DIconButton::clicked, this, &MainWidget::slotCopy);
-    connect(this, &MainWidget::sigResult, this, [ = ](const QString & result) {
-        loadString(result);
+    connect(m_imageview, &ImageView::selectionRangesChanged, this, &MainWidget::syncSelectionFromImage);
+    connect(m_imageview, &ImageView::copyRequested, this, &MainWidget::copyCurrentSelection);
+    connect(m_plainTextEdit, &ResultTextView::textSelectionChanged, this, &MainWidget::syncSelectionFromText);
+    connect(m_plainTextEdit, &ResultTextView::textSelectionChanged, this, &MainWidget::updateCopyActionState);
+    connect(m_plainTextEdit, &QPlainTextEdit::selectionChanged, this, &MainWidget::updateCopyActionState);
+    connect(m_imageview, &ImageView::selectionRangesChanged, this, &MainWidget::updateCopyActionState);
+    connect(this, &MainWidget::sigResult, this, [ = ](const OcrResult &result) {
+        applyOcrResult(result);
         deleteLoadingUi();
         if(m_needReRunRec) {
             m_needReRunRec = false;
@@ -488,15 +496,19 @@ void MainWidget::runRec(bool needSetImage)
 
     createLoadingUi();
     m_plainTextEdit->clear();
+    m_ocrResult = {};
+    if (m_imageview) {
+        m_imageview->clearOcrResult();
+    }
     if(needSetImage) {
         OCREngine::instance()->setImage(*m_currentImg);
     }
     if (!m_loadImagethread) {
         m_loadImagethread = QThread::create([ = ]() {
-            m_result = OCREngine::instance()->getRecogitionResult();
+            const OcrResult result = OCREngine::instance()->getRecognitionResult();
             //判断程序是否退出
             if (1 == m_isEndThread) {
-                emit sigResult(m_result);
+                emit sigResult(result);
             }
         });
     }
@@ -518,6 +530,29 @@ void MainWidget::loadHtml(const QString &html)
         m_plainTextEdit->setUndoRedoEnabled(true);
     } else {
         resultEmpty();
+    }
+}
+
+void MainWidget::applyOcrResult(const OcrResult &result)
+{
+    m_ocrResult = result;
+    m_result = result.plainText;
+    if (!result.plainText.isEmpty()) {
+        m_plainTextEdit->setUndoRedoEnabled(false);
+        m_frameStackLayout->setContentsMargins(20, 0, 5, 0);
+        m_resultWidget->setCurrentWidget(m_plainTextEdit);
+        m_plainTextEdit->setPlainTextResult(result.plainText);
+        m_plainTextEdit->setUndoRedoEnabled(true);
+        m_imageview->setOcrResult(result);
+        m_imageview->setFocus();
+        if (m_exportBtn) {
+            m_exportBtn->setEnabled(true);
+        }
+        updateCopyActionState();
+    } else {
+        m_imageview->clearOcrResult();
+        resultEmpty();
+        m_noResult->setVisible(true);
     }
 }
 
@@ -555,6 +590,8 @@ void MainWidget::resultEmpty()
     //修复未识别到文字没有居中对齐的问题
     m_frameStackLayout->setContentsMargins(20, 0, 20, 0);
     m_resultWidget->setCurrentWidget(m_noResult);
+    m_imageview->clearOcrResult();
+    m_ocrResult = {};
     //新增如果未识别到，按钮置灰
     if (m_copyBtn) {
         m_copyBtn->setEnabled(false);
@@ -615,18 +652,26 @@ void MainWidget::paintEvent(QPaintEvent *event)
 
 void MainWidget::slotCopy()
 {
-    //选中内容则复制，未选中内容则不复制
-    if (!m_plainTextEdit->textCursor().selectedText().isEmpty()) {
-        m_plainTextEdit->copy();
+    copyCurrentSelection();
+}
+
+void MainWidget::copyCurrentSelection()
+{
+    QString copiedText;
+    if (m_imageview->hasSelection()) {
+        copiedText = m_imageview->selectedText();
     } else {
-        QTextDocument *document = m_plainTextEdit->document();
-        QPlainTextEdit *tempTextEdit = new QPlainTextEdit(this);
-        tempTextEdit->setDocument(document);
-        tempTextEdit->selectAll();
-        tempTextEdit->copy();
-        tempTextEdit->deleteLater();
-        tempTextEdit = nullptr;
+        const auto textRange = m_plainTextEdit->plainTextSelectionRange();
+        if (textRange.first != textRange.second) {
+            copiedText = m_ocrResult.textInRange(textRange.first, textRange.second);
+        }
     }
+
+    if (copiedText.isEmpty()) {
+        return;
+    }
+
+    QApplication::clipboard()->setText(copiedText);
 
     QIcon icon(":/assets/icon_toast_sucess_new.svg");
     DFloatingMessage *pDFloatingMessage = new DFloatingMessage(DFloatingMessage::MessageType::TransientType, m_pwidget);
@@ -635,7 +680,44 @@ void MainWidget::slotCopy()
     pDFloatingMessage->setIcon(icon);
     pDFloatingMessage->raise();
     DMessageManager::instance()->sendMessage(m_pwidget, pDFloatingMessage);
+}
 
+void MainWidget::updateCopyActionState()
+{
+    if (!m_copyBtn) {
+        return;
+    }
+
+    const bool hasImageSelection = m_imageview && m_imageview->hasSelection();
+    const auto textRange = m_plainTextEdit ? m_plainTextEdit->plainTextSelectionRange() : QPair<int, int>{-1, -1};
+    const bool hasTextSelection = textRange.first != textRange.second;
+    m_copyBtn->setEnabled(hasImageSelection || hasTextSelection);
+}
+
+void MainWidget::syncSelectionFromImage(const QList<QPair<int, int>> &ranges)
+{
+    if (m_syncingSelection) {
+        return;
+    }
+    m_syncingSelection = true;
+    m_plainTextEdit->selectPlainTextRanges(ranges);
+    m_syncingSelection = false;
+    updateCopyActionState();
+}
+
+void MainWidget::syncSelectionFromText(int start, int end)
+{
+    if (m_syncingSelection) {
+        return;
+    }
+    m_syncingSelection = true;
+    if (start >= 0 && end > start) {
+        m_imageview->selectRange(start, end);
+    } else {
+        m_imageview->selectRange(-1, -1);
+    }
+    m_syncingSelection = false;
+    updateCopyActionState();
 }
 
 void MainWidget::slotExport()

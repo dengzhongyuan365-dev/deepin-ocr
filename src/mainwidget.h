@@ -21,6 +21,7 @@
 
 #include "textloadwidget.h"
 #include "engine/OCREngine.h"
+#include "engine/OcrResult.h"
 
 class Frame;
 class QThread;
@@ -54,6 +55,7 @@ public:
 
     void loadHtml(const QString &html);
     void loadString(const QString &string);
+    void applyOcrResult(const OcrResult &result);
     void resultEmpty();
 
     //缩放显示label
@@ -66,6 +68,10 @@ private slots:
     void slotCopy();
     void slotExport();
     void runRec(bool needSetImage);
+    void syncSelectionFromImage(const QList<QPair<int, int>> &ranges);
+    void syncSelectionFromText(int start, int end);
+    void copyCurrentSelection();
+    void updateCopyActionState();
 private:
     QGridLayout *m_mainGridLayout{nullptr};
     QHBoxLayout *m_horizontalLayout{nullptr};
@@ -96,6 +102,8 @@ private:
     QThread *m_loadImagethread{nullptr};
     QMutex m_mutex;
     QString m_result;
+    OcrResult m_ocrResult;
+    bool m_syncingSelection = false;
     QImage *m_currentImg{nullptr};
 
     DStackedWidget *m_resultWidget{nullptr};
@@ -113,7 +121,7 @@ private:
     DComboBox *languageSelectBox {nullptr}; // 语言选择框
 
 signals:
-    void sigResult(const QString &);
+    void sigResult(const OcrResult &result);
 
 };
 
